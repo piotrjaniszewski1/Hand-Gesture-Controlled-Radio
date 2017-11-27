@@ -5,7 +5,7 @@ from skimage.morphology import square
 
 '''
 In order to use your camera:
-1. Uncomment lines: 48, 50, 53
+1. Uncomment lines: 48, 50, 53, 71
 2. Comment lines: 52, 68
 3. Pass a positive value as an argument in line 67
 '''
@@ -84,8 +84,10 @@ def main():
         cv2.imshow('output', drawing)
         cv2.imshow('input', image)
 
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        k = cv2.waitKey(0)
+        if k == 27:
+            cv2.destroyAllWindows()
+            #break
 
 if __name__ == '__main__':
     main()
