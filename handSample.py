@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import cv2
 import numpy as np
 from skimage.morphology import square
@@ -8,8 +9,8 @@ In order to use your camera:
 2. Comment lines: 52, 68
 3. Pass a positive value as an argument in line 67
 '''
-
-FILE_PATH = "/home/piotr/PycharmProjects/HandDetection/hand4.png" #customize it!
+BLUE_BGR = [255, 0, 0]
+FILE_PATH = "4.png" # "hand4.png" #customize it!
 
 def customedClosing(image, squareSize, dilationIterations, erosionIterarions):
     image = cv2.dilate(image, square(squareSize), iterations=dilationIterations)
@@ -44,7 +45,20 @@ def determineBiggestContour(contours):
 
     return biggestContour
 
+def determineConvexityDefects(contour, convexHull):
+    defects = cv2.convexityDefects(contour, convexHull)
+    defectsList = []
+
+    for [defect] in defects:
+        start, end, farthest, _ = defect
+        [startPoint], [endPoint], [farthestPoint] = contour[start], contour[end], contour[farthest]
+        defectsList.append((tuple(startPoint), tuple(endPoint), tuple(farthestPoint)))
+
+    return defectsList
+
+
 def main():
+
     #cap = cv2.VideoCapture(1)
 
     #while (cap.isOpened()):
@@ -57,9 +71,15 @@ def main():
 
         biggestContour = determineBiggestContour(contours)
         hull = cv2.convexHull(biggestContour)
+        hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
+
+        defects = determineConvexityDefects(biggestContour, hullNoPoints)
 
         cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
         cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
+
+        for (_, _, x) in defects:
+            drawing = cv2.circle(drawing, x, 5, BLUE_BGR, -1)
 
         cv2.imshow('output', drawing)
         cv2.imshow('input', image)
