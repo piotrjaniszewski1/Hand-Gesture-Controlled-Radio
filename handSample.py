@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import cv2
 import numpy as np
 from skimage.morphology import square
@@ -10,12 +11,16 @@ In order to use your camera:
 3. Pass a positive value as an argument in line 67
 '''
 BLUE_BGR = [255, 0, 0]
-FILE_PATH = "4.png" # "hand4.png" #customize it!
+PINK_BGR = [255, 20, 147]
+FILE_PATH = "4.png"  # "hand4.png" #customize it!
+
 
 def customedClosing(image, squareSize, dilationIterations, erosionIterarions):
-    image = cv2.dilate(image, square(squareSize), iterations=dilationIterations)
+    image = cv2.dilate(image, square(squareSize),
+                       iterations=dilationIterations)
     image = cv2.erode(image, square(squareSize), iterations=erosionIterarions)
     return image
+
 
 def improveShape(image):
     # checked empirically, undermentioned aproximation correct enough
@@ -24,15 +29,19 @@ def improveShape(image):
 
     return image
 
+
 def determineContours(image):
 
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, image = cv2.threshold(image, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    #image = improveShape(image) #sometimes needed
+    _, image = cv2.threshold(
+        image, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # image = improveShape(image) #sometimes needed
 
-    _, contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    _, contours, hierarchy = cv2.findContours(
+        image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     return contours, hierarchy
+
 
 def determineBiggestContour(contours):
     maxArea = 0
@@ -45,49 +54,65 @@ def determineBiggestContour(contours):
 
     return biggestContour
 
+
 def determineConvexityDefects(contour, convexHull):
     defects = cv2.convexityDefects(contour, convexHull)
     defectsList = []
 
     for [defect] in defects:
         start, end, farthest, _ = defect
-        [startPoint], [endPoint], [farthestPoint] = contour[start], contour[end], contour[farthest]
-        defectsList.append((tuple(startPoint), tuple(endPoint), tuple(farthestPoint)))
+        [startPoint], [endPoint], [
+            farthestPoint] = contour[start], contour[end], contour[farthest]
+        defectsList.append(
+            (tuple(startPoint), tuple(endPoint), tuple(farthestPoint)))
 
     return defectsList
+
+
+def calculateCenterMass(contour):
+    moments = cv2.moments(contour)
+    cx, cy = int(moments['m10'] / moments['m00']
+                 ), int(moments['m01'] / moments['m00'])
+    return(cx, cy)
 
 
 def main():
 
     #cap = cv2.VideoCapture(1)
 
-    #while (cap.isOpened()):
+    # while (cap.isOpened()):
 
-        image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
-        #_, image = cap.read()
+    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
+    #_, image = cap.read()
 
-        contours, hierarchy = determineContours(image)
-        drawing = np.zeros(image.shape, np.uint8)
+    contours, hierarchy = determineContours(image)
+    drawing = np.zeros(image.shape, np.uint8)
 
-        biggestContour = determineBiggestContour(contours)
-        hull = cv2.convexHull(biggestContour)
-        hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
+    biggestContour = determineBiggestContour(contours)
+    hull = cv2.convexHull(biggestContour)
+    hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
 
-        defects = determineConvexityDefects(biggestContour, hullNoPoints)
+    defects = determineConvexityDefects(biggestContour, hullNoPoints)
 
-        cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
-        cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
+    cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
+    cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
 
-        for (_, _, x) in defects:
-            drawing = cv2.circle(drawing, x, 5, BLUE_BGR, -1)
+    # draw circles in defect points
 
-        cv2.imshow('output', drawing)
-        cv2.imshow('input', image)
+    for (_, _, x) in defects:
+        drawing = cv2.circle(drawing, x, 5, BLUE_BGR, -1)
 
-        k = cv2.waitKey(0)
-        if k == 27:
-            cv2.destroyAllWindows()
-            #break
+    centerMass = calculateCenterMass(biggestContour)
+
+    drawing = cv2.circle(drawing, centerMass, 7, PINK_BGR, 2)
+    cv2.imshow('output', drawing)
+    cv2.imshow('input', image)
+
+    k = cv2.waitKey(0)
+    if k == 27:
+        cv2.destroyAllWindows()
+        # break
+
 
 if __name__ == '__main__':
     main()
