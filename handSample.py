@@ -2,6 +2,7 @@
 
 import cv2
 import numpy as np
+import sys
 from skimage.morphology import square
 
 '''
@@ -12,7 +13,13 @@ In order to use your camera:
 '''
 BLUE_BGR = [255, 0, 0]
 PINK_BGR = [255, 20, 147]
-FILE_PATH = "4.png"  # "hand4.png" #customize it!
+if len(sys.argv) == 2:
+    FILE_PATH = sys.argv[1]
+elif len(sys.argv) == 1:
+    FILE_PATH = "4.png"  # "hand4.png" #customize it!
+else:
+    print("Too many arguments")
+    exit()
 
 
 def customedClosing(image, squareSize, dilationIterations, erosionIterarions):
@@ -60,7 +67,9 @@ def determineConvexityDefects(contour, convexHull):
     defectsList = []
 
     for [defect] in defects:
-        start, end, farthest, _ = defect
+        start, end, farthest, x = defect
+        if not(x > 10000):
+            continue
         [startPoint], [endPoint], [
             farthestPoint] = contour[start], contour[end], contour[farthest]
         defectsList.append(
@@ -75,44 +84,50 @@ def calculateCenterMass(contour):
                  ), int(moments['m01'] / moments['m00'])
     return(cx, cy)
 
+def euclideanDistance(x, y):
+    x1, x2 = x
+    y1, y2 = y
+    return np.sqrt(np.power(x1-x2, 2) + np.power(y1-y2,2))
 
 def main():
 
-    #cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
 
-    # while (cap.isOpened()):
+    while (cap.isOpened()):
 
-    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
-    #_, image = cap.read()
+    #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
+        _, drawing = cap.read()
 
-    contours, hierarchy = determineContours(image)
-    drawing = np.zeros(image.shape, np.uint8)
+        contours, hierarchy = determineContours(drawing)
+        # drawing = np.zeros(image.shape, np.uint8)
 
-    biggestContour = determineBiggestContour(contours)
-    hull = cv2.convexHull(biggestContour)
-    hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
+        biggestContour = determineBiggestContour(contours)
+        hull = cv2.convexHull(biggestContour)
+        hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
 
-    defects = determineConvexityDefects(biggestContour, hullNoPoints)
+        defects = determineConvexityDefects(biggestContour, hullNoPoints)
 
-    cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
-    cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
+        fingers = 0
+        for defect in defects:
+            (a, b, c) = defect
+            drawing = cv2.circle(drawing, c, 7, [0,255,0], -1)
+            fingers += 1
 
-    # draw circles in defect points
+        fingers += 1
 
-    for (_, _, x) in defects:
-        drawing = cv2.circle(drawing, x, 5, BLUE_BGR, -1)
+        if fingers <= 5:
+            print('Number of fingers: ', fingers)
+        else:
+            print('Number of fingers unknown')
 
-    centerMass = calculateCenterMass(biggestContour)
+        cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
+        cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
 
-    drawing = cv2.circle(drawing, centerMass, 7, PINK_BGR, 2)
-    cv2.imshow('output', drawing)
-    cv2.imshow('input', image)
+        # cv2.imshow('output', image)
+        cv2.imshow('output', drawing)
 
-    k = cv2.waitKey(0)
-    if k == 27:
-        cv2.destroyAllWindows()
-        # break
-
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
 if __name__ == '__main__':
     main()
