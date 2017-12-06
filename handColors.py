@@ -14,10 +14,32 @@ else:
     print("Too many arguments")
     exit()
 
+def detectHandByColors(image):
+    converted = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    lower = np.array([0, 48, 80], dtype="uint8")
+    upper = np.array([20, 255, 255], dtype="uint8")
+    mask = cv2.inRange(converted, lower, upper)
+
+    kernel11 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    kernel5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.dilate(mask, kernel11, iterations=2)
+    mask = cv2.erode(mask, kernel11, iterations=2)
+    mask = cv2.dilate(mask, kernel5, iterations=1)
+
+    mask = cv2.GaussianBlur(mask, (3, 3), 0)
+    skin = cv2.bitwise_and(converted, converted, mask=mask)
+
+    image = cv2.cvtColor(skin, cv2.COLOR_HSV2BGR)
+
+    return image
+
 def determineContours(image):
+
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     _, image = cv2.threshold(image, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
     _, contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     return contours, hierarchy
@@ -69,12 +91,12 @@ def main():
 
     while (cap.isOpened()):
 
-        #image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
+    #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
         _, drawing = cap.read()
 
-        image = drawing
+        image = detectHandByColors(drawing)
 
-        contours, hierarchy = determineContours(drawing)
+        contours, hierarchy = determineContours(image)
 
         biggestContour = determineBiggestContour(contours)
         hull = cv2.convexHull(biggestContour)
@@ -98,7 +120,9 @@ def main():
         cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
         cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
 
-        cv2.imshow('output', drawing)
+        # po lewej pojawia się obramowanie obszaru wykrytego jako dłoń (czerwony convex hull się jebie)
+        # po prawej pojawia się sam obszar wykryty jako dłoń (reszta kolorowana na czarno)
+        cv2.imshow("images", np.hstack([drawing, image]))
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
