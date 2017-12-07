@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 
 import cv2
-import numpy as np
+from skimage.morphology import square
 import sys
 
+RED_BGR = [0, 0, 255]
+GREEN_BGR = [0, 255, 0]
 BLUE_BGR = [255, 0, 0]
 PINK_BGR = [255, 20, 147]
 MIN_DISTANCE = 10000
+
+CONTOUR_THICKNESS = 2
+CIRCLE_RADIUS = 7
+
+THRESHOLD = 70
+
+BRIGHTNESS = 0.7
+CONTRAST = 0.5
+SATURATION = 0.4
+EXPOSURE = 0.3
 
 if len(sys.argv) == 2:
     FILE_PATH = sys.argv[1]
@@ -17,11 +29,20 @@ else:
     exit()
 
 
+def improveCapturing(cap):
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, BRIGHTNESS)
+    cap.set(cv2.CAP_PROP_CONTRAST, CONTRAST)
+    cap.set(cv2.CAP_PROP_SATURATION, SATURATION)
+    cap.set(cv2.CAP_PROP_EXPOSURE, EXPOSURE)
+
+    return cap
+
 def determineContours(image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     _, image = cv2.threshold(
-        image, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        image, THRESHOLD, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
     _, contours, hierarchy = cv2.findContours(
         image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -62,13 +83,14 @@ def determineConvexityDefects(contour, convexHull, min_distance):
 def main():
 
     cap = cv2.VideoCapture(1)
+    cap = improveCapturing(cap)
+
+    previousDefectCount = 0
 
     while (cap.isOpened()):
 
         #image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
         _, drawing = cap.read()
-
-        image = drawing
 
         contours, hierarchy = determineContours(drawing)
 
@@ -79,27 +101,29 @@ def main():
         defects = determineConvexityDefects(
             biggestContour, hullNoPoints, MIN_DISTANCE)
 
-        fingers = 0
+        defectCount = 0
         for defect in defects:
-            (a, b, c) = defect
-            drawing = cv2.circle(drawing, c, 7, [0, 255, 0], -1)
-            fingers += 1
+            (_, _, c) = defect
+            drawing = cv2.circle(drawing, c, CIRCLE_RADIUS, GREEN_BGR, -1)
+            defectCount += 1
 
-        fingers += 1
+        defectCount += 1
 
-        if fingers <= 5:
-            print('Number of fingers: ', fingers)
-        else:
-            print('Number of fingers unknown')
+        if previousDefectCount != defectCount:
+            if defectCount <= 6:
+                print('The recently detected number of fingers: ', defectCount - 1)
+            else:
+                print('The number of fingers unknown')
 
-        cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
-        cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
+        previousDefectCount = defectCount
+
+        cv2.drawContours(drawing, [biggestContour], 0, tuple(GREEN_BGR), CONTOUR_THICKNESS)
+        cv2.drawContours(drawing, [hull], 0, tuple(RED_BGR), CONTOUR_THICKNESS)
 
         cv2.imshow('output', drawing)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-
 
 if __name__ == '__main__':
     main()
