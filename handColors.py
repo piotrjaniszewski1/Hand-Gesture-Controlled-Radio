@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import sys
+import time  # for calculateing framerate
 
 BLUE_BGR = [255, 0, 0]
 PINK_BGR = [255, 20, 147]
@@ -13,6 +14,7 @@ elif len(sys.argv) == 1:
 else:
     print("Too many arguments")
     exit()
+
 
 def detectHandByColors(image):
     converted = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -34,15 +36,19 @@ def detectHandByColors(image):
 
     return image
 
+
 def determineContours(image):
 
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    _, image = cv2.threshold(image, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    _, image = cv2.threshold(
+        image, 70, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-    _, contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    _, contours, hierarchy = cv2.findContours(
+        image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     return contours, hierarchy
+
 
 def determineBiggestContour(contours):
     maxArea = cv2.contourArea(contours[0])
@@ -55,6 +61,7 @@ def determineBiggestContour(contours):
             maxArea = area
 
     return biggestContour
+
 
 def determineConvexityDefects(contour, convexHull):
     defects = cv2.convexityDefects(contour, convexHull)
@@ -74,27 +81,48 @@ def determineConvexityDefects(contour, convexHull):
 
     return defectsList
 
+
 def calculateCenterMass(contour):
     moments = cv2.moments(contour)
     cx, cy = int(moments['m10'] / moments['m00']
                  ), int(moments['m01'] / moments['m00'])
     return(cx, cy)
 
+
 def euclideanDistance(x, y):
     x1, x2 = x
     y1, y2 = y
-    return np.sqrt(np.power(x1-x2, 2) + np.power(y1-y2,2))
+    return np.sqrt(np.power(x1 - x2, 2) + np.power(y1 - y2, 2))
+
+
+def calculateFramerate(camera):
+    fps = camera.get(cv2.CAP_PROP_FPS)
+    return fps
+
+def meanOfImages(images):
+    images = [np.float32(x) for x in images] # able to hold values above 255
+    length = len(images)
+    mean = sum(images)/length
+    return np.uint8(mean)
+
 
 def main():
 
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
+    frameRate = int(calculateFramerate(cap))
+    print("Camera's fps: ", frameRate)
 
     while (cap.isOpened()):
 
-    #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
-        _, drawing = cap.read()
+        #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
 
+        images = []
+        for x in range(frameRate//2):
+            _, drawing = cap.read()
+            images.append(drawing)
+        drawing = meanOfImages(images)
         image = detectHandByColors(drawing)
+
 
         contours, hierarchy = determineContours(image)
 
@@ -107,7 +135,7 @@ def main():
         fingers = 0
         for defect in defects:
             (a, b, c) = defect
-            drawing = cv2.circle(drawing, c, 7, [0,255,0], -1)
+            drawing = cv2.circle(drawing, c, 7, [0, 255, 0], -1)
             fingers += 1
 
         fingers += 1
@@ -121,11 +149,13 @@ def main():
         cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
 
         # po lewej pojawia się obramowanie obszaru wykrytego jako dłoń (czerwony convex hull się jebie)
-        # po prawej pojawia się sam obszar wykryty jako dłoń (reszta kolorowana na czarno)
+        # po prawej pojawia się sam obszar wykryty jako dłoń (reszta kolorowana
+        # na czarno)
         cv2.imshow("images", np.hstack([drawing, image]))
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
 
 if __name__ == '__main__':
     main()
