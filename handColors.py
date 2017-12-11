@@ -16,6 +16,14 @@ else:
     exit()
 
 
+def establishBrightness(image, cap):
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    values = [x[2] for row in image for x in row]
+
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, np.median(values) / 255)
+
+
 def detectHandByColors(image):
     converted = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -115,6 +123,9 @@ def main():
     while (cap.isOpened()):
 
         #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
+
+        _, drawing = cap.read()
+        establishBrightness(drawing, cap)
 
         images = []
         for x in range(frameRate//2):

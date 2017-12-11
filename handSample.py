@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import cv2
-from skimage.morphology import square
+import numpy as np
 import sys
 
 RED_BGR = [0, 0, 255]
@@ -27,6 +27,19 @@ elif len(sys.argv) == 1:
 else:
     print("Too many arguments")
     exit()
+
+
+def establishBrightness(image, cap):
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    values = [x[2] for row in image for x in row]
+
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, np.median(values) / 255)
+
+
+def calculateFramerate(camera):
+    fps = camera.get(cv2.CAP_PROP_FPS)
+    return fps
 
 
 def improveCapturing(cap):
@@ -82,15 +95,23 @@ def determineConvexityDefects(contour, convexHull, min_distance):
 
 def main():
 
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     cap = improveCapturing(cap)
+    frameRate = int(calculateFramerate(cap))
+    print("Camera's fps: ", frameRate)
 
     previousDefectCount = 0
+    captureCount = 0
 
     while (cap.isOpened()):
 
         #image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
         _, drawing = cap.read()
+        captureCount += 1
+
+        if captureCount % (frameRate // 2) == 0:
+            captureCount = 0
+            establishBrightness(drawing, cap)
 
         contours, hierarchy = determineContours(drawing)
 
