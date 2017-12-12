@@ -24,6 +24,17 @@ def establishBrightness(image, cap):
     cap.set(cv2.CAP_PROP_BRIGHTNESS, np.median(values) / 255)
 
 
+def removeSuperBrightAreas(image):
+
+    for i in range(4, 40, 4):
+        image2 = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        _, mask = cv2.threshold(image2, 255 - i, 255, cv2.THRESH_BINARY)
+        image = cv2.inpaint(image, mask, 3, cv2.INPAINT_NS)
+
+    return image
+
+
 def detectHandByColors(image):
     converted = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -125,6 +136,8 @@ def main():
         #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
 
         _, drawing = cap.read()
+
+        drawing = removeSuperBrightAreas(drawing)
         establishBrightness(drawing, cap)
 
         images = []

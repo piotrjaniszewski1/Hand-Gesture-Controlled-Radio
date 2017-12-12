@@ -29,6 +29,20 @@ else:
     exit()
 
 
+def calculateFramerate(camera):
+    fps = camera.get(cv2.CAP_PROP_FPS)
+    return fps
+
+
+def initCapturing(cap):
+    cap.set(cv2.CAP_PROP_BRIGHTNESS, BRIGHTNESS)
+    cap.set(cv2.CAP_PROP_CONTRAST, CONTRAST)
+    cap.set(cv2.CAP_PROP_SATURATION, SATURATION)
+    cap.set(cv2.CAP_PROP_EXPOSURE, EXPOSURE)
+
+    return cap
+
+
 def establishBrightness(image, cap):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -37,18 +51,15 @@ def establishBrightness(image, cap):
     cap.set(cv2.CAP_PROP_BRIGHTNESS, np.median(values) / 255)
 
 
-def calculateFramerate(camera):
-    fps = camera.get(cv2.CAP_PROP_FPS)
-    return fps
+def removeSuperBrightAreas(image):
 
+    for i in range(4, 40, 4):
+        image2 = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-def improveCapturing(cap):
-    cap.set(cv2.CAP_PROP_BRIGHTNESS, BRIGHTNESS)
-    cap.set(cv2.CAP_PROP_CONTRAST, CONTRAST)
-    cap.set(cv2.CAP_PROP_SATURATION, SATURATION)
-    cap.set(cv2.CAP_PROP_EXPOSURE, EXPOSURE)
+        _, mask = cv2.threshold(image2, 255 - i, 255, cv2.THRESH_BINARY)
+        image = cv2.inpaint(image, mask, 3, cv2.INPAINT_NS)
 
-    return cap
+    return image
 
 def determineContours(image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -96,7 +107,7 @@ def determineConvexityDefects(contour, convexHull, min_distance):
 def main():
 
     cap = cv2.VideoCapture(0)
-    cap = improveCapturing(cap)
+    cap = initCapturing(cap)
     frameRate = int(calculateFramerate(cap))
     print("Camera's fps: ", frameRate)
 
@@ -108,6 +119,8 @@ def main():
         #image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
         _, drawing = cap.read()
         captureCount += 1
+
+        drawing = removeSuperBrightAreas(drawing)
 
         if captureCount % (frameRate // 2) == 0:
             captureCount = 0
