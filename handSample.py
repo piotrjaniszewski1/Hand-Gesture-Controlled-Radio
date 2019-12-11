@@ -29,12 +29,12 @@ else:
     exit()
 
 
-def calculateFramerate(camera):
+def calculate_frame_rate(camera):
     fps = camera.get(cv2.CAP_PROP_FPS)
     return fps
 
 
-def initCapturing(cap):
+def init_capturing(cap):
     cap.set(cv2.CAP_PROP_BRIGHTNESS, BRIGHTNESS)
     cap.set(cv2.CAP_PROP_CONTRAST, CONTRAST)
     cap.set(cv2.CAP_PROP_SATURATION, SATURATION)
@@ -43,7 +43,7 @@ def initCapturing(cap):
     return cap
 
 
-def establishBrightness(image, cap):
+def establish_brightness(image, cap):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     values = [x[2] for row in image for x in row]
@@ -51,7 +51,7 @@ def establishBrightness(image, cap):
     cap.set(cv2.CAP_PROP_BRIGHTNESS, np.median(values) / 255)
 
 
-def removeSuperBrightAreas(image):
+def remove_super_bright_areas(image):
 
     for i in range(4, 40, 4):
         image2 = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -61,7 +61,7 @@ def removeSuperBrightAreas(image):
 
     return image
 
-def determineContours(image):
+def determine_contours(image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     _, image = cv2.threshold(
@@ -73,20 +73,20 @@ def determineContours(image):
     return contours, hierarchy
 
 
-def determineBiggestContour(contours):
+def determine_biggest_contour(contours):
     maxArea = cv2.contourArea(contours[0])
-    biggestContour = contours[0]
+    biggest_contour = contours[0]
 
     for i in range(1, len(contours)):
         area = cv2.contourArea(contours[i])
         if area > maxArea:
-            biggestContour = contours[i]
+            biggest_contour = contours[i]
             maxArea = area
 
-    return biggestContour
+    return biggest_contour
 
 
-def determineConvexityDefects(contour, convexHull, min_distance):
+def determine_convexity_defects(contour, convexHull, min_distance):
     defects = cv2.convexityDefects(contour, convexHull)
     defectsList = []
     try:
@@ -98,63 +98,67 @@ def determineConvexityDefects(contour, convexHull, min_distance):
                 farthestPoint] = contour[start], contour[end], contour[farthest]
             defectsList.append(
                 (tuple(startPoint), tuple(endPoint), tuple(farthestPoint)))
+
     except TypeError as e:
         print("There are no detected defects")
 
     return defectsList
 
 
+def determine_defects(contours, previous_defect_count, drawing):
+    biggest_contour = determine_biggest_contour(contours)
+    hull = cv2.convexHull(biggest_contour)
+    hull_no_points = cv2.convexHull(biggest_contour, returnPoints=False)
+
+    defects = determine_convexity_defects(
+    biggest_contour, hull_no_points, MIN_DISTANCE)
+
+    defect_count = 0
+    for defect in defects:
+        (_, _, c) = defect
+        drawing = cv2.circle(drawing, c, CIRCLE_RADIUS, GREEN_BGR, -1)
+        defect_count += 1
+
+    defect_count += 1
+
+    if previous_defect_count != defect_count:
+        if defect_count <= 6:
+            print('The recently detected number of fingers: ', defect_count - 1)
+        else:
+            print('The number of fingers unknown')
+
+    cv2.drawContours(drawing, [biggest_contour], 0, tuple(GREEN_BGR), CONTOUR_THICKNESS)
+    cv2.drawContours(drawing, [hull], 0, tuple(RED_BGR), CONTOUR_THICKNESS)
+
+    cv2.imshow('output', drawing)
+
+    return defect_count
+
+
+def adjust_brightness(drawing, frame_rate, cap):
+    drawing = remove_super_bright_areas(drawing)
+
+    if capture_count % (frame_rate // 2) == 0:
+        capture_count = 0
+        establish_brightness(drawing, cap)
+
+    return drawing
+
 def main():
-
     cap = cv2.VideoCapture(0)
-    cap = initCapturing(cap)
-    frameRate = int(calculateFramerate(cap))
-    print("Camera's fps: ", frameRate)
+    cap = init_capturing(cap)
+    frame_rate = int(calculate_frame_rate(cap))
 
-    previousDefectCount = 0
-    captureCount = 0
+    previous_defect_count = 0
+    capture_count = 0
 
     while (cap.isOpened()):
-
-        #image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
         _, drawing = cap.read()
-        captureCount += 1
+        capture_count += 1
 
-        drawing = removeSuperBrightAreas(drawing)
-
-        if captureCount % (frameRate // 2) == 0:
-            captureCount = 0
-            establishBrightness(drawing, cap)
-
-        contours, hierarchy = determineContours(drawing)
-
-        biggestContour = determineBiggestContour(contours)
-        hull = cv2.convexHull(biggestContour)
-        hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
-
-        defects = determineConvexityDefects(
-            biggestContour, hullNoPoints, MIN_DISTANCE)
-
-        defectCount = 0
-        for defect in defects:
-            (_, _, c) = defect
-            drawing = cv2.circle(drawing, c, CIRCLE_RADIUS, GREEN_BGR, -1)
-            defectCount += 1
-
-        defectCount += 1
-
-        if previousDefectCount != defectCount:
-            if defectCount <= 6:
-                print('The recently detected number of fingers: ', defectCount - 1)
-            else:
-                print('The number of fingers unknown')
-
-        previousDefectCount = defectCount
-
-        cv2.drawContours(drawing, [biggestContour], 0, tuple(GREEN_BGR), CONTOUR_THICKNESS)
-        cv2.drawContours(drawing, [hull], 0, tuple(RED_BGR), CONTOUR_THICKNESS)
-
-        cv2.imshow('output', drawing)
+        drawing = adjust_brightness(drawing, frame_rate, cap)
+        contours, hierarchy = determine_contours(drawing)
+        previous_defect_count = determine_defects(contours, previous_defect_count, drawing)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

@@ -3,20 +3,20 @@
 import cv2
 import numpy as np
 import sys
-import time  # for calculateing framerate
+import time 
 
 BLUE_BGR = [255, 0, 0]
 PINK_BGR = [255, 20, 147]
 if len(sys.argv) == 2:
     FILE_PATH = sys.argv[1]
 elif len(sys.argv) == 1:
-    FILE_PATH = "4.png"  # "hand4.png" #customize it!
+    FILE_PATH = "4.png" 
 else:
     print("Too many arguments")
     exit()
 
 
-def establishBrightness(image, cap):
+def establish_brightness(image, cap):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     values = [x[2] for row in image for x in row]
@@ -24,7 +24,7 @@ def establishBrightness(image, cap):
     cap.set(cv2.CAP_PROP_BRIGHTNESS, np.median(values) / 255)
 
 
-def removeSuperBrightAreas(image):
+def remove_super_bright_areas(image):
 
     for i in range(4, 40, 4):
         image2 = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -35,7 +35,7 @@ def removeSuperBrightAreas(image):
     return image
 
 
-def detectHandByColors(image):
+def detect_hand_by_colors(image):
     converted = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     lower = np.array([0, 48, 80], dtype="uint8")
@@ -56,7 +56,7 @@ def detectHandByColors(image):
     return image
 
 
-def determineContours(image):
+def determine_contours(image):
 
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -69,20 +69,20 @@ def determineContours(image):
     return contours, hierarchy
 
 
-def determineBiggestContour(contours):
-    maxArea = cv2.contourArea(contours[0])
-    biggestContour = contours[0]
+def determine_biggest_contour(contours):
+    max_area = cv2.contourArea(contours[0])
+    biggest_contour = contours[0]
 
     for i in range(1, len(contours)):
         area = cv2.contourArea(contours[i])
-        if area > maxArea:
-            biggestContour = contours[i]
-            maxArea = area
+        if area > max_area:
+            biggest_contour = contours[i]
+            max_area = area
 
-    return biggestContour
+    return biggest_contour
 
 
-def determineConvexityDefects(contour, convexHull):
+def determine_convexity_defects(contour, convexHull):
     defects = cv2.convexityDefects(contour, convexHull)
     defectsList = []
 
@@ -101,80 +101,82 @@ def determineConvexityDefects(contour, convexHull):
     return defectsList
 
 
-def calculateCenterMass(contour):
+def calculate_center_mass(contour):
     moments = cv2.moments(contour)
     cx, cy = int(moments['m10'] / moments['m00']
                  ), int(moments['m01'] / moments['m00'])
     return(cx, cy)
 
 
-def euclideanDistance(x, y):
+def euclidean_distance(x, y):
     x1, x2 = x
     y1, y2 = y
     return np.sqrt(np.power(x1 - x2, 2) + np.power(y1 - y2, 2))
 
 
-def calculateFramerate(camera):
+def calculate_frame_rate(camera):
     fps = camera.get(cv2.CAP_PROP_FPS)
     return fps
 
-def meanOfImages(images):
+def mean_of_images(images):
     images = [np.float32(x) for x in images] # able to hold values above 255
     length = len(images)
     mean = sum(images)/length
     return np.uint8(mean)
 
 
-def main():
-
-    cap = cv2.VideoCapture(0)
-    frameRate = int(calculateFramerate(cap))
-    print("Camera's fps: ", frameRate)
-
-    while (cap.isOpened()):
-
-        #    image = cv2.imread(FILE_PATH, cv2.IMREAD_COLOR)
-
+def aggregate_images(drawing, cap):
+    images = []
+    for x in range(frame_rate//2):
         _, drawing = cap.read()
+        images.append(drawing)
 
-        drawing = removeSuperBrightAreas(drawing)
-        establishBrightness(drawing, cap)
-
-        images = []
-        for x in range(frameRate//2):
-            _, drawing = cap.read()
-            images.append(drawing)
-        drawing = meanOfImages(images)
-        image = detectHandByColors(drawing)
+    drawing = mean_of_images(images)
+    return detect_hand_by_colors(drawing)
 
 
-        contours, hierarchy = determineContours(image)
+def determine_defects(contours, drawing):
+    biggest_contour = determine_biggest_contour(contours)
+    hull = cv2.convexHull(biggest_contour)
+    hull_no_points = cv2.convexHull(biggest_contour, returnPoints=False)
 
-        biggestContour = determineBiggestContour(contours)
-        hull = cv2.convexHull(biggestContour)
-        hullNoPoints = cv2.convexHull(biggestContour, returnPoints=False)
+    cv2.drawContours(drawing, [biggest_contour], 0, (0, 255, 0), 2)
+    cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
 
-        defects = determineConvexityDefects(biggestContour, hullNoPoints)
+    return biggest_contour, determine_convexity_defects(biggest_contour, hull_no_points)
 
-        fingers = 0
-        for defect in defects:
-            (a, b, c) = defect
-            drawing = cv2.circle(drawing, c, 7, [0, 255, 0], -1)
-            fingers += 1
 
+def count_fingers(defects):
+    fingers = 0
+    for defect in defects:
+        (a, b, c) = defect
+        drawing = cv2.circle(drawing, c, 7, [0, 255, 0], -1)
         fingers += 1
 
-        if fingers <= 5:
-            print('Number of fingers: ', fingers)
-        else:
-            print('Number of fingers unknown')
+    fingers = 1
 
-        cv2.drawContours(drawing, [biggestContour], 0, (0, 255, 0), 2)
-        cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 2)
+    if fingers <= 5:
+        print('Number of fingers: ', fingers)
+    else:
+        print('Number of fingers unknown')
 
-        # po lewej pojawia się obramowanie obszaru wykrytego jako dłoń (czerwony convex hull się jebie)
-        # po prawej pojawia się sam obszar wykryty jako dłoń (reszta kolorowana
-        # na czarno)
+
+def main():
+    cap = cv2.VideoCapture(0)
+    frame_rate = int(calculate_frame_rate(cap))
+    print("Camera's fps: ", frame_rate)
+
+    while (cap.isOpened()):
+        _, drawing = cap.read()
+
+        drawing = remove_super_bright_areas(drawing)
+        establish_brightness(drawing, cap)
+        image = aggregate_images(drawing, cap)
+        contours, hierarchy = determine_contours(image)
+
+        defects = determine_defects(contours, drawing)
+        count_fingers(defects)
+
         cv2.imshow("images", np.hstack([drawing, image]))
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
